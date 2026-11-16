@@ -1,4 +1,5 @@
 import sys
+import json
 import subprocess
 import tempfile
 import shutil
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 APP_NAME = "ASNkit"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 DONATION_URL = "https://trakteer.id/radarswingid"
 
 BG = "#101820"
@@ -301,6 +302,32 @@ class PdfToolkit(QMainWindow):
         self.ocr_language.addItem("Indonesia", "ind")
         self.ocr_language.addItem("Inggris", "eng")
         v.addWidget(self.ocr_language)
+        self.ocr_regions = []
+        self.ocr_region_source = None
+        region_row = QHBoxLayout()
+        choose = QPushButton("Pilih area baca…")
+        choose.clicked.connect(self.choose_ocr_regions)
+        self.ocr_region_label = QLabel("Seluruh gambar")
+        reset = QPushButton("Reset area")
+        reset.clicked.connect(self.reset_ocr_regions)
+        region_row.addWidget(choose); region_row.addWidget(self.ocr_region_label, 1); region_row.addWidget(reset)
+        v.addLayout(region_row)
+        self.ocr_layout = QComboBox()
+        self.ocr_layout.addItem("Susunan otomatis", "auto")
+        self.ocr_layout.addItem("Satu blok teks per area", "block")
+        self.ocr_layout.addItem("Dua kolom: kiri lalu kanan (per area)", "columns")
+        v.addWidget(self.ocr_layout)
+        split_row = QHBoxLayout()
+        split_row.addWidget(QLabel("Batas kolom (% lebar area)"))
+        self.ocr_split = QSpinBox()
+        self.ocr_split.setRange(20, 80); self.ocr_split.setValue(50)
+        self.ocr_split.setEnabled(False)
+        self.ocr_layout.currentIndexChanged.connect(lambda: self.ocr_split.setEnabled(self.ocr_layout.currentData() == "columns"))
+        split_row.addWidget(self.ocr_split); split_row.addStretch()
+        v.addLayout(split_row)
+        self.image_markdown_list.itemSelectionChanged.connect(self.update_ocr_region_label)
+        self.image_markdown_list.model().rowsInserted.connect(self.update_ocr_region_label)
+        self.image_markdown_list.model().rowsRemoved.connect(self.update_ocr_region_label)
         hint = QLabel("Pilih satu gambar yang mengandung teks. Diproses lokal tanpa API key. Hasil OCR perlu diperiksa, terutama tabel dan tulisan tangan.")
         hint.setObjectName("muted")
         hint.setWordWrap(True)
@@ -311,6 +338,37 @@ class PdfToolkit(QMainWindow):
         self.image_markdown_button.clicked.connect(lambda: self.convert_markdown("image"))
         v.addWidget(self.image_markdown_button)
         return w
+
+    def image_source_key(self):
+        files = self.image_markdown_list.paths()
+        if len(files) != 1 or not files[0].exists():
+            return None
+        stat = files[0].stat()
+        return (str(files[0].resolve()), stat.st_mtime_ns, stat.st_size)
+
+    def update_ocr_region_label(self, *args):
+        if self.image_source_key() != self.ocr_region_source:
+            self.reset_ocr_regions()
+
+    def reset_ocr_regions(self):
+        self.ocr_regions = []
+        self.ocr_region_source = None
+        self.ocr_region_label.setText("Seluruh gambar")
+
+    def choose_ocr_regions(self):
+        files = self.image_markdown_list.paths()
+        if len(files) != 1:
+            return self.info("Tambahkan tepat satu gambar dahulu.", True)
+        try:
+            from ocr_regions import RegionDialog
+            self.update_ocr_region_label()
+            dialog = RegionDialog(files[0], self.ocr_regions, self)
+            if dialog.exec():
+                self.ocr_regions = dialog.canvas.regions
+                self.ocr_region_source = self.image_source_key()
+                self.ocr_region_label.setText(f"{len(self.ocr_regions)} area, sesuai urutan pilihan" if self.ocr_regions else "Seluruh gambar")
+        except Exception as exc:
+            self.info(f"Tidak dapat memilih area: {exc}", True)
 
     def convert_markdown(self, kind="pdf"):
         if not isinstance(kind, str):
@@ -330,6 +388,8 @@ class PdfToolkit(QMainWindow):
                 return self.info("File hasil sudah ada. Pilih nama lain atau pilih file .md tersebut langsung.", True)
         if target.resolve() == source.resolve():
             return self.info("File hasil harus berbeda dari PDF sumber.", True)
+        self.update_ocr_region_label()
+        options = {"regions": self.ocr_regions, "layout": self.ocr_layout.currentData(), "split": self.ocr_split.value() / 100}
         self.markdown_target = target
         process = QProcess(self)
         self.markdown_process = process
@@ -339,7 +399,7 @@ class PdfToolkit(QMainWindow):
         self.status.setText(f"MarkItDown sedang memproses: {source.name}")
         process.finished.connect(self.markdown_finished)
         process.errorOccurred.connect(self.markdown_error)
-        process.start(sys.executable, [str(Path(__file__).with_name("markdown_converter.py")), str(source), str(target), kind, self.ocr_language.currentData()])
+        process.start(sys.executable, [str(Path(__file__).with_name("markdown_converter.py")), str(source), str(target), kind, self.ocr_language.currentData(), json.dumps(options)])
 
     def markdown_error(self, error):
         if error == QProcess.ProcessError.FailedToStart:

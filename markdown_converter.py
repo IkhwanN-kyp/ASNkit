@@ -1,11 +1,12 @@
 """Local PDF-to-Markdown conversion using Microsoft MarkItDown."""
 import os
+import json
 from pathlib import Path
 import sys
 import tempfile
 
 
-def convert_pdf(source, target, kind="pdf", language="ind+eng"):
+def convert_pdf(source, target, kind="pdf", language="ind+eng", options=None):
     from markitdown import MarkItDown
 
     source, target = Path(source), Path(target)
@@ -15,7 +16,7 @@ def convert_pdf(source, target, kind="pdf", language="ind+eng"):
     if kind == "image":
         from image_ocr import LocalImageConverter
         converter.register_converter(LocalImageConverter(), priority=-1)
-    result = converter.convert_local(str(source), ocr_language=language)
+    result = converter.convert_local(str(source), ocr_language=language, ocr_options=options or {})
     text = result.text_content
     if not text.strip():
         raise ValueError("Tidak ada teks yang dapat diekstrak. PDF hasil scan memerlukan OCR terlebih dahulu.")
@@ -36,7 +37,7 @@ def convert_pdf(source, target, kind="pdf", language="ind+eng"):
 
 if __name__ == "__main__":
     try:
-        convert_pdf(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "pdf", sys.argv[4] if len(sys.argv) > 4 else "ind+eng")
+        convert_pdf(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "pdf", sys.argv[4] if len(sys.argv) > 4 else "ind+eng", json.loads(sys.argv[5]) if len(sys.argv) > 5 else None)
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)

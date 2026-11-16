@@ -2,7 +2,7 @@
 
 <img src="asnkit.svg" alt="ASNkit" width="96">
 
-Toolkit PDF desktop berbahasa Indonesia, berbasis Python dan PySide6. Versi Linux 1.2.0.
+Toolkit PDF desktop berbahasa Indonesia, berbasis Python dan PySide6. Versi Linux 1.2.1.
 
 ## Fitur
 
@@ -63,7 +63,11 @@ Konversi berjalan dalam proses terpisah agar jendela tetap responsif. Jika konve
 1. Buka tab **Gambar → MD**.
 2. Tambahkan satu PNG, JPEG, BMP, TIFF, atau WebP.
 3. Pilih bahasa Indonesia, Inggris, atau keduanya.
-4. Klik **Simpan gambar sebagai Markdown**.
+4. Untuk foto buku, klik **Pilih area baca…**. Seret beberapa kotak sesuai urutan baca, misalnya judul, teks kolom kiri, lalu kolom kanan. Hindari ilustrasi serta halaman sebelah. Gambar asli tidak diubah.
+5. Pilih susunan **Satu blok teks per area** untuk potongan paragraf; atau **Dua kolom** untuk area yang mencakup dua kolom. Sesuaikan persentase batas kolom jika pembatas tidak berada tepat di tengah. Dalam mode dua kolom, setiap area dibaca dari kolom kiri lalu kanan.
+6. Klik **Simpan gambar sebagai Markdown**.
+
+Pilihan area berlaku untuk gambar tersebut saja dan dibersihkan ketika sumber berubah. Foto melengkung, miring, buram, atau teks tertutup tetap dapat salah terbaca; pemilihan area tidak meluruskan perspektif atau memulihkan teks yang hilang.
 
 ASNkit mendaftarkan converter gambar khusus pada MarkItDown yang memakai Tesseract lokal. Ini merupakan integrasi ASNkit, bukan OCR lokal bawaan MarkItDown. Tidak membutuhkan API key atau unggahan gambar. Gambar diputar mengikuti orientasi EXIF; TIFF multihalaman diproses per halaman. Hasil berupa teks OCR dalam file Markdown, bukan rekonstruksi tabel, format, atau deskripsi visual. Periksa kembali hasil OCR; tulisan tangan dan gambar buram dapat kurang akurat. Gambar tanpa teks menghasilkan pesan kesalahan tanpa mengganti file hasil sebelumnya.
 
