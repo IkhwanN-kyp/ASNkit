@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 APP_NAME = "ASNkit"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 DONATION_URL = "https://trakteer.id/radarswingid"
 
 BG = "#101820"
@@ -137,6 +137,7 @@ class PdfToolkit(QMainWindow):
         self.tabs.addTab(self.make_split(), "Split PDF")
         self.tabs.addTab(self.make_pdf_word(), "PDF ↔ Word")
         self.tabs.addTab(self.make_markdown(), "PDF → Markdown")
+        self.tabs.addTab(self.make_image_markdown(), "Gambar → MD")
         self.tabs.addTab(self.make_images(), "Gambar → PDF")
         self.tabs.addTab(self.make_viewer(), "PDF Viewer")
         self.tabs.addTab(self.make_about(), "Tentang ASNkit")
@@ -207,7 +208,9 @@ class PdfToolkit(QMainWindow):
         return row
 
     def pick_files(self, listing):
-        if listing.extensions == {".pdf"}:
+        if listing is getattr(self, "image_markdown_list", None):
+            files, _ = QFileDialog.getOpenFileNames(self, "Pilih gambar", "", "Gambar (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp)")
+        elif listing.extensions == {".pdf"}:
             files, _ = QFileDialog.getOpenFileNames(self, "Pilih file PDF", "", "PDF (*.pdf)")
         elif listing.extensions == {".docx"}:
             files, _ = QFileDialog.getOpenFileNames(self, "Pilih dokumen Word", "", "Word (*.docx)")
@@ -288,12 +291,35 @@ class PdfToolkit(QMainWindow):
         self.markdown_process = None
         return w
 
-    def convert_markdown(self):
+    def make_image_markdown(self):
+        w, v = self.page("Gambar ke Markdown", "Baca teks dari gambar dengan OCR lokal dan simpan sebagai Markdown melalui MarkItDown.")
+        self.image_markdown_list = DropList({".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}, multiple=False)
+        v.addWidget(self.image_markdown_list, 1)
+        v.addLayout(self.file_controls(self.image_markdown_list))
+        self.ocr_language = QComboBox()
+        self.ocr_language.addItem("Indonesia + Inggris", "ind+eng")
+        self.ocr_language.addItem("Indonesia", "ind")
+        self.ocr_language.addItem("Inggris", "eng")
+        v.addWidget(self.ocr_language)
+        hint = QLabel("Pilih satu gambar yang mengandung teks. Diproses lokal tanpa API key. Hasil OCR perlu diperiksa, terutama tabel dan tulisan tangan.")
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        v.addWidget(hint)
+        self.image_markdown_button = QPushButton("Simpan gambar sebagai Markdown")
+        self.image_markdown_button.setObjectName("primary")
+        self.image_markdown_button.setMinimumWidth(300)
+        self.image_markdown_button.clicked.connect(lambda: self.convert_markdown("image"))
+        v.addWidget(self.image_markdown_button)
+        return w
+
+    def convert_markdown(self, kind="pdf"):
+        if not isinstance(kind, str):
+            kind = "pdf"
         if self.markdown_process is not None:
             return
-        files = self.markdown_list.paths()
+        files = (self.image_markdown_list if kind == "image" else self.markdown_list).paths()
         if len(files) != 1:
-            return self.info("Tambahkan tepat satu PDF untuk dikonversi ke Markdown.", True)
+            return self.info("Tambahkan tepat satu file untuk dikonversi ke Markdown.", True)
         source = files[0]
         target = self.output_path("Simpan Markdown", "Markdown (*.md)", source.with_suffix(".md").name)
         if target is None:
@@ -308,11 +334,12 @@ class PdfToolkit(QMainWindow):
         process = QProcess(self)
         self.markdown_process = process
         self.markdown_button.setEnabled(False)
+        self.image_markdown_button.setEnabled(False)
         self.markdown_button.setText("Sedang mengonversi…")
         self.status.setText(f"MarkItDown sedang memproses: {source.name}")
         process.finished.connect(self.markdown_finished)
         process.errorOccurred.connect(self.markdown_error)
-        process.start(sys.executable, [str(Path(__file__).with_name("markdown_converter.py")), str(source), str(target)])
+        process.start(sys.executable, [str(Path(__file__).with_name("markdown_converter.py")), str(source), str(target), kind, self.ocr_language.currentData()])
 
     def markdown_error(self, error):
         if error == QProcess.ProcessError.FailedToStart:
@@ -325,6 +352,7 @@ class PdfToolkit(QMainWindow):
         error = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
         self.markdown_process = None
         self.markdown_button.setEnabled(True)
+        self.image_markdown_button.setEnabled(True)
         self.markdown_button.setText("Simpan sebagai Markdown")
         process.deleteLater()
         if exit_code != 0 or exit_status != QProcess.ExitStatus.NormalExit:
