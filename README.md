@@ -2,7 +2,7 @@
 
 <img src="asnkit.svg" alt="ASNkit" width="96">
 
-Toolkit PDF desktop berbahasa Indonesia, berbasis Python dan PySide6. Versi Linux 1.2.1.
+Toolkit PDF desktop berbahasa Indonesia, berbasis Python dan PySide6. Versi Linux 1.3.0.
 
 ## Fitur
 
@@ -10,11 +10,12 @@ Toolkit PDF desktop berbahasa Indonesia, berbasis Python dan PySide6. Versi Linu
 - Konversi PDF ke Word (DOCX), serta Word ke PDF melalui LibreOffice.
 - **PDF ke Markdown (.md)** menggunakan [Microsoft MarkItDown](https://github.com/microsoft/markitdown).
 - **Gambar ke Markdown (.md)** melalui converter OCR lokal Tesseract yang didaftarkan pada Microsoft MarkItDown; bahasa Indonesia dan Inggris.
+- **Gemini → Markdown** opsional untuk transkripsi gambar dengan AI Google.
 - Gabungkan gambar menjadi PDF.
 - PDF viewer dengan navigasi halaman dan zoom.
 - Tema gelap/terang dan ikon khusus ASNkit.
 
-Dokumen diproses secara lokal. Konversi Markdown tidak membutuhkan API key atau layanan AI daring. PDF hasil scan membutuhkan OCR terlebih dahulu; tata letak kompleks dan tabel dapat berubah saat konversi.
+Alat PDF dan OCR Tesseract diproses lokal tanpa API key. Tab Gemini bersifat opsional dan mengirim gambar ke Google dengan API key serta persetujuan pengguna. PDF hasil scan membutuhkan OCR terlebih dahulu; tata letak kompleks dan tabel dapat berubah saat konversi.
 
 ## Instalasi Linux
 
@@ -72,6 +73,23 @@ Pilihan area berlaku untuk gambar tersebut saja dan dibersihkan ketika sumber be
 ASNkit mendaftarkan converter gambar khusus pada MarkItDown yang memakai Tesseract lokal. Ini merupakan integrasi ASNkit, bukan OCR lokal bawaan MarkItDown. Tidak membutuhkan API key atau unggahan gambar. Gambar diputar mengikuti orientasi EXIF; TIFF multihalaman diproses per halaman. Hasil berupa teks OCR dalam file Markdown, bukan rekonstruksi tabel, format, atau deskripsi visual. Periksa kembali hasil OCR; tulisan tangan dan gambar buram dapat kurang akurat. Gambar tanpa teks menghasilkan pesan kesalahan tanpa mengganti file hasil sebelumnya.
 
 Pasang paket Tesseract beserta bahasa yang dipilih menggunakan perintah instalasi di atas. Instalasi lokal khusus komputer asal tidak disertakan dalam repositori.
+
+## Gemini ke Markdown (opsional, daring)
+
+1. Buka [Google AI Studio](https://aistudio.google.com/apikey), login Google, dan buat Gemini API key. Integrasi desktop ini memakai API key, bukan sesi login Gemini di browser.
+2. Buka tab **Gemini → MD** di ASNkit dan tambahkan tepat satu gambar.
+3. Tempel API key. Key hanya disimpan dalam memori selama sesi aplikasi; tidak ditulis ke file atau argumen proses.
+4. Pilih model yang tersedia untuk proyek Anda. Default: `gemini-3.5-flash-lite`; ID model dapat diedit.
+5. Baca informasi pengiriman data, lalu centang persetujuan gambar dikirim ke Google.
+6. Klik **Kirim ke Gemini dan simpan Markdown**, lalu pilih lokasi hasil.
+
+Gemini mempunyai free tier untuk model/proyek tertentu, dengan kuota dan pembatasan. Pengguna harus memeriksa [harga/ketentuan data Google](https://ai.google.dev/gemini-api/docs/pricing) dan kuota proyeknya; aplikasi tidak dapat menjamin penggunaan gratis pada proyek berbayar. Pada layanan gratis, konten dapat dipakai Google untuk meningkatkan produknya. Jangan menaruh API key dalam kode atau repositori.
+
+Mode ini mengirim gambar dari tab Gemini saja. Mode OCR lokal serta pilihan areanya terpisah dan tidak memakai Gemini. Gambar diputar sesuai EXIF, metadata dibuang, dan resolusi dibatasi maksimum 3072 piksel per sisi sebelum dikirim. TIFF didukung hingga 10 halaman per permintaan, dengan batas payload aplikasi 19 MB. Foto asli tidak diubah. Persetujuan pengiriman direset setelah permintaan dijalankan atau daftar gambar berubah.
+
+Prompt meminta transkripsi sesuai urutan kolom tanpa menjawab soal; teks tidak jelas ditandai `[tidak terbaca]` dan ilustrasi ditandai `[Ilustrasi]`. Hasil AI tetap dapat salah dan harus diperiksa. Respons kosong, terblokir, terpotong, atau HTTP error tidak mengganti file hasil sebelumnya. Aplikasi tidak mencoba ulang permintaan secara otomatis.
+
+Integrasi telah diuji dengan respons API simulasi. Pengujian langsung ke Google memerlukan API key pengguna; tidak ada key yang disertakan.
 
 ## Asal dan lisensi
 

@@ -12,12 +12,16 @@ def convert_pdf(source, target, kind="pdf", language="ind+eng", options=None):
     source, target = Path(source), Path(target)
     if source.resolve() == target.resolve():
         raise ValueError("File hasil harus berbeda dari file sumber.")
-    converter = MarkItDown(enable_plugins=False)
-    if kind == "image":
-        from image_ocr import LocalImageConverter
-        converter.register_converter(LocalImageConverter(), priority=-1)
-    result = converter.convert_local(str(source), ocr_language=language, ocr_options=options or {})
-    text = result.text_content
+    if kind == "gemini":
+        from gemini_converter import transcribe_image, DEFAULT_MODEL
+        text = transcribe_image(source, (options or {}).get("model", DEFAULT_MODEL))
+    else:
+        converter = MarkItDown(enable_plugins=False)
+        if kind == "image":
+            from image_ocr import LocalImageConverter
+            converter.register_converter(LocalImageConverter(), priority=-1)
+        result = converter.convert_local(str(source), ocr_language=language, ocr_options=options or {})
+        text = result.text_content
     if not text.strip():
         raise ValueError("Tidak ada teks yang dapat diekstrak. PDF hasil scan memerlukan OCR terlebih dahulu.")
     temporary = None

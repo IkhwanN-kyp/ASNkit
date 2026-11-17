@@ -6,17 +6,17 @@ import shutil
 from pathlib import Path
 
 from PySide6.QtGui import QIcon
-from PySide6.QtCore import Qt, QPointF, QProcess
+from PySide6.QtCore import Qt, QPointF, QProcess, QProcessEnvironment
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
+    QApplication, QCheckBox, QLineEdit, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QMainWindow, QMessageBox, QPushButton,
     QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
 
 APP_NAME = "ASNkit"
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.3.0"
 DONATION_URL = "https://trakteer.id/radarswingid"
 
 BG = "#101820"
@@ -99,8 +99,8 @@ class PdfToolkit(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} — PDF Toolkit")
-        self.resize(900, 680)
-        self.setMinimumSize(760, 580)
+        self.resize(1020, 740)
+        self.setMinimumSize(900, 680)
         root = QWidget()
         root.setObjectName("root")
         self.setCentralWidget(root)
@@ -127,9 +127,9 @@ class PdfToolkit(QMainWindow):
         self.theme_picker.setToolTip("Pilih tema tampilan")
         self.theme_picker.currentIndexChanged.connect(self.apply_theme)
         header.addWidget(self.theme_picker, alignment=Qt.AlignTop)
-        badge = QLabel("OFFLINE • LINUX")
+        badge = QLabel("LOKAL + GEMINI")
         badge.setObjectName("badge")
-        badge.setToolTip("Fitur PDF bekerja secara lokal: dokumen tidak diunggah. Koneksi internet hanya diperlukan untuk membuka tautan web.")
+        badge.setToolTip("Alat PDF dan OCR berjalan lokal. Tab Gemini mengirim gambar ke Google setelah persetujuan Anda.")
         header.addWidget(badge, alignment=Qt.AlignTop)
         layout.addLayout(header)
 
@@ -139,9 +139,10 @@ class PdfToolkit(QMainWindow):
         self.tabs.addTab(self.make_pdf_word(), "PDF ↔ Word")
         self.tabs.addTab(self.make_markdown(), "PDF → Markdown")
         self.tabs.addTab(self.make_image_markdown(), "Gambar → MD")
+        self.tabs.addTab(self.make_gemini(), "Gemini → MD")
         self.tabs.addTab(self.make_images(), "Gambar → PDF")
         self.tabs.addTab(self.make_viewer(), "PDF Viewer")
-        self.tabs.addTab(self.make_about(), "Tentang ASNkit")
+        self.tabs.addTab(self.make_about(), "Tentang")
         layout.addWidget(self.tabs, 1)
         self.status = QLabel("Pilih tab, tambahkan file, lalu jalankan proses.")
         self.status.setObjectName("muted")
@@ -209,7 +210,7 @@ class PdfToolkit(QMainWindow):
         return row
 
     def pick_files(self, listing):
-        if listing is getattr(self, "image_markdown_list", None):
+        if listing in (getattr(self, "image_markdown_list", None), getattr(self, "gemini_list", None)):
             files, _ = QFileDialog.getOpenFileNames(self, "Pilih gambar", "", "Gambar (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp)")
         elif listing.extensions == {".pdf"}:
             files, _ = QFileDialog.getOpenFileNames(self, "Pilih file PDF", "", "PDF (*.pdf)")
@@ -339,6 +340,42 @@ class PdfToolkit(QMainWindow):
         v.addWidget(self.image_markdown_button)
         return w
 
+    def make_gemini(self):
+        from gemini_converter import DEFAULT_MODEL
+        w, v = self.page("Gambar ke Markdown dengan Gemini", "AI membaca gambar dan susunan dokumen. Memerlukan internet dan Gemini API key.")
+        self.gemini_list = DropList({".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}, multiple=False)
+        v.addWidget(self.gemini_list, 1)
+        v.addLayout(self.file_controls(self.gemini_list))
+        form = QFormLayout()
+        self.gemini_key = QLineEdit()
+        self.gemini_key.setMinimumHeight(42)
+        self.gemini_key.setEchoMode(QLineEdit.Password)
+        self.gemini_key.setPlaceholderText("API key hanya untuk sesi ini; tidak disimpan ke file")
+        self.gemini_model = QComboBox()
+        self.gemini_model.setMinimumHeight(42)
+        self.gemini_model.setEditable(True)
+        self.gemini_model.addItems([DEFAULT_MODEL, "gemini-3.8-flash"])
+        form.addRow("Gemini API key", self.gemini_key)
+        form.addRow("Model", self.gemini_model)
+        v.addLayout(form)
+        link = QLabel('<a style="color:#00a987" href="https://aistudio.google.com/apikey">Login Google dan buat API key di Google AI Studio</a> · <a style="color:#00a987" href="https://ai.google.dev/gemini-api/docs/pricing">Kuota, biaya, dan ketentuan data</a>')
+        link.setStyleSheet("QLabel a { color: #00a987; }")
+        link.setOpenExternalLinks(True)
+        link.setWordWrap(True)
+        v.addWidget(link)
+        hint = QLabel("Gratis mengikuti kuota akun/model; paket berbayar dapat dikenai biaya. Pada layanan gratis, Google dapat memakai konten untuk meningkatkan produk. Hasil AI tetap perlu diperiksa.")
+        hint.setObjectName("muted"); hint.setWordWrap(True)
+        v.addWidget(hint)
+        self.gemini_consent = QCheckBox("Saya setuju gambar pilihan dikirim ke Google Gemini untuk konversi.")
+        v.addWidget(self.gemini_consent)
+        self.gemini_list.model().rowsInserted.connect(lambda *args: self.gemini_consent.setChecked(False))
+        self.gemini_list.model().rowsRemoved.connect(lambda *args: self.gemini_consent.setChecked(False))
+        self.gemini_button = QPushButton("Kirim ke Gemini dan simpan Markdown")
+        self.gemini_button.setObjectName("primary")
+        self.gemini_button.clicked.connect(lambda: self.convert_markdown("gemini"))
+        v.addWidget(self.gemini_button)
+        return w
+
     def image_source_key(self):
         files = self.image_markdown_list.paths()
         if len(files) != 1 or not files[0].exists():
@@ -375,7 +412,12 @@ class PdfToolkit(QMainWindow):
             kind = "pdf"
         if self.markdown_process is not None:
             return
-        files = (self.image_markdown_list if kind == "image" else self.markdown_list).paths()
+        if kind == "gemini":
+            if not self.gemini_key.text().strip():
+                return self.info("Masukkan API key Gemini dari Google AI Studio.", True)
+            if not self.gemini_consent.isChecked():
+                return self.info("Centang persetujuan pengiriman gambar ke Google dahulu.", True)
+        files = (self.gemini_list if kind == "gemini" else self.image_markdown_list if kind == "image" else self.markdown_list).paths()
         if len(files) != 1:
             return self.info("Tambahkan tepat satu file untuk dikonversi ke Markdown.", True)
         source = files[0]
@@ -389,14 +431,20 @@ class PdfToolkit(QMainWindow):
         if target.resolve() == source.resolve():
             return self.info("File hasil harus berbeda dari PDF sumber.", True)
         self.update_ocr_region_label()
-        options = {"regions": self.ocr_regions, "layout": self.ocr_layout.currentData(), "split": self.ocr_split.value() / 100}
+        options = {"regions": self.ocr_regions, "layout": self.ocr_layout.currentData(), "split": self.ocr_split.value() / 100, "model": self.gemini_model.currentText().strip()}
         self.markdown_target = target
         process = QProcess(self)
         self.markdown_process = process
         self.markdown_button.setEnabled(False)
         self.image_markdown_button.setEnabled(False)
+        self.gemini_button.setEnabled(False)
         self.markdown_button.setText("Sedang mengonversi…")
-        self.status.setText(f"MarkItDown sedang memproses: {source.name}")
+        self.status.setText(f"{'Gemini sedang memproses' if kind == 'gemini' else 'MarkItDown sedang memproses'}: {source.name}")
+        if kind == "gemini":
+            env = QProcessEnvironment.systemEnvironment()
+            env.insert("ASNKIT_GEMINI_API_KEY", self.gemini_key.text().strip())
+            process.setProcessEnvironment(env)
+            self.gemini_consent.setChecked(False)
         process.finished.connect(self.markdown_finished)
         process.errorOccurred.connect(self.markdown_error)
         process.start(sys.executable, [str(Path(__file__).with_name("markdown_converter.py")), str(source), str(target), kind, self.ocr_language.currentData(), json.dumps(options)])
@@ -413,6 +461,7 @@ class PdfToolkit(QMainWindow):
         self.markdown_process = None
         self.markdown_button.setEnabled(True)
         self.image_markdown_button.setEnabled(True)
+        self.gemini_button.setEnabled(True)
         self.markdown_button.setText("Simpan sebagai Markdown")
         process.deleteLater()
         if exit_code != 0 or exit_status != QProcess.ExitStatus.NormalExit:
@@ -478,7 +527,7 @@ class PdfToolkit(QMainWindow):
             f"<h2>{APP_NAME} <span style='font-size:10pt'>v{APP_VERSION}</span></h2>"
             "<p>ASNkit adalah aplikasi desktop open source yang menyediakan alat untuk menggabungkan dan memisahkan PDF, "
             "mengubah dokumen, membuat PDF dari gambar, serta membaca PDF.</p>"
-            "<p>Aplikasi dirancang agar dokumen diproses langsung di komputer Anda, tanpa perlu mengunggahnya ke layanan daring. "
+            "<p>Alat PDF dan OCR diproses lokal. Fitur Gemini bersifat opsional dan mengirim gambar ke Google setelah persetujuan. "
             "Kode sumbernya menggunakan lisensi <a href='https://opensource.org/license/mit/'>MIT</a>, sehingga dapat dipelajari "
             "dan dikembangkan kembali sesuai ketentuan lisensi.</p>"
             "<h3>Bantu ASNkit terus berkembang</h3>"
